@@ -36,8 +36,11 @@ function getLocalBrowserPath(): string | null {
   return null;
 }
 
+// Evaluated native dynamic import to bypass TypeScript CommonJS require rewrite
+const importModule = (specifier: string) => new Function(`return import("${specifier}")`)();
+
 async function launchBrowser(): Promise<Browser> {
-  const puppeteerMod = await import("puppeteer-core");
+  const puppeteerMod = await importModule("puppeteer-core");
   const puppeteer = puppeteerMod.default || puppeteerMod;
   const localPath = getLocalBrowserPath();
 
@@ -57,7 +60,7 @@ async function launchBrowser(): Promise<Browser> {
   }
 
   // Otherwise, use @sparticuz/chromium for Vercel Serverless
-  const chromiumMod = await import("@sparticuz/chromium");
+  const chromiumMod = await importModule("@sparticuz/chromium");
   const chromium = chromiumMod.default || chromiumMod;
   return puppeteer.launch({
     args: chromium.args,
