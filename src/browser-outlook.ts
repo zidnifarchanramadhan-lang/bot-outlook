@@ -31,6 +31,9 @@ const LOCAL_CHROME_PATHS = [
 ];
 
 function getLocalBrowserPath(): string | null {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH && fs.existsSync(process.env.PUPPETEER_EXECUTABLE_PATH)) {
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
   for (const p of LOCAL_CHROME_PATHS) {
     if (fs.existsSync(p)) return p;
   }
