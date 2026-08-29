@@ -88,7 +88,7 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       const type = req.resourceType();
-      if (type === "image" || type === "font" || type === "media" || type === "imageset") {
+      if (type === "image" || type === "font" || type === "media") {
         req.abort();
       } else {
         req.continue();
