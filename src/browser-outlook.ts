@@ -84,13 +84,24 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     );
 
-    // 1. Go to Microsoft Login
-    await page.goto("https://login.live.com/", { waitUntil: "networkidle2", timeout: 25000 });
+    // Block unnecessary media to speed up loading by 3x
+    await page.setRequestInterception(true);
+    page.on("request", (req) => {
+      const type = req.resourceType();
+      if (type === "image" || type === "font" || type === "media" || type === "imageset") {
+        req.abort();
+      } else {
+        req.continue();
+      }
+    });
+
+    // 1. Go to Microsoft Login (fast domcontentloaded)
+    await page.goto("https://login.live.com/", { waitUntil: "domcontentloaded", timeout: 12000 });
 
     // 2. Type email
     const emailSelector = 'input[type="email"], #usernameEntry, #i0116, input[name="loginfmt"]';
-    await page.waitForSelector(emailSelector, { timeout: 10000 });
-    await page.type(emailSelector, cleanEmail, { delay: 20 });
+    await page.waitForSelector(emailSelector, { timeout: 6000 });
+    await page.type(emailSelector, cleanEmail);
 
     // Click Next
     const nextBtn = await page.$('button[type="submit"], #idSIButton9, button#nextButton, input[type="submit"]');
@@ -98,12 +109,10 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
       await nextBtn.click();
     }
 
-    await new Promise(r => setTimeout(r, 1500));
-
     // 3. Wait for password field or username error
     const passSelector = 'input[type="password"], #passwordEntry, #i0118, input[name="passwd"]';
     try {
-      await page.waitForSelector(passSelector, { timeout: 8000 });
+      await page.waitForSelector(passSelector, { timeout: 6000 });
     } catch {
       // Check username error
       const userErr = await page.$eval('#usernameError, [role="alert"]', (el) => (el as HTMLElement).innerText || el.textContent || "").catch(() => null);
@@ -114,8 +123,7 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
     }
 
     // 4. Type password
-    await page.type(passSelector, cleanPass, { delay: 20 });
-    await new Promise(r => setTimeout(r, 500));
+    await page.type(passSelector, cleanPass);
 
     // Click Sign In
     const signinBtn = await page.$('button[type="submit"], #idSIButton9, button#signInButton, input[type="submit"]');
@@ -123,7 +131,7 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
       await signinBtn.click();
     }
 
-    await new Promise(r => setTimeout(r, 3000));
+    await new Promise((r) => setTimeout(r, 1500));
 
     // 5. Check for password errors
     const passErr = await page.evaluate(() => {
@@ -147,39 +155,42 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
     const kmsiBtn = await page.$('#acceptButton, #declineButton, #idBtn_Back, #idSIButton9');
     if (kmsiBtn) {
       await kmsiBtn.click().catch(() => {});
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise((r) => setTimeout(r, 1200));
     }
 
     // 7. Navigate to Outlook Mailbox if not already there
     if (!page.url().includes("outlook.live.com")) {
-      await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "networkidle2", timeout: 30000 });
+      await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 15000 });
     }
 
-    await new Promise(r => setTimeout(r, 4000));
+    // Wait for email rows to load
+    await page.waitForSelector('div[role="option"], div[role="listbox"] > div, div[data-convid]', { timeout: 6000 }).catch(() => {});
 
     // 8. Extract emails from Outlook Web interface
     const emails = await page.evaluate(() => {
       const items: Array<{ subject: string; from: string; preview: string; dateStr: string }> = [];
-      
-      // Select conversation / message list items in OWA
+
       const rows = document.querySelectorAll('div[role="option"], div[role="listbox"] > div, div[data-convid]');
-      
+
       for (const row of Array.from(rows).slice(0, 5)) {
         const text = (row as HTMLElement).innerText || "";
-        const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+        const lines = text
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0);
         if (lines.length >= 2) {
           items.push({
             from: lines[0] || "",
             subject: lines[1] || "",
             preview: lines.slice(2).join(" "),
-            dateStr: new Date().toISOString()
+            dateStr: new Date().toISOString(),
           });
         }
       }
       return items;
     });
 
-    const parsedItems: DirectEmailItem[] = emails.map(item => {
+    const parsedItems: DirectEmailItem[] = emails.map((item) => {
       const otp = extractOTP(item.subject, item.preview);
       return {
         id: Math.random().toString(),
@@ -189,14 +200,14 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
         fromName: item.from,
         fromAddress: item.from,
         date: new Date(),
-        otpResult: otp
+        otpResult: otp,
       };
     });
 
     return {
       success: true,
       email: cleanEmail,
-      messages: parsedItems
+      messages: parsedItems,
     };
   } catch (err: any) {
     return {
