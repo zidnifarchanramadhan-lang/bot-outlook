@@ -1,4 +1,5 @@
-import type { Browser } from "puppeteer-core";
+import puppeteer, { Browser } from "puppeteer-core";
+import chromium from "@sparticuz/chromium";
 import fs from "fs";
 import { extractOTP, OTPExtractionResult } from "./otp";
 
@@ -36,12 +37,7 @@ function getLocalBrowserPath(): string | null {
   return null;
 }
 
-// Evaluated native dynamic import to bypass TypeScript CommonJS require rewrite
-const importModule = (specifier: string) => new Function(`return import("${specifier}")`)();
-
 async function launchBrowser(): Promise<Browser> {
-  const puppeteerMod = await importModule("puppeteer-core");
-  const puppeteer = puppeteerMod.default || puppeteerMod;
   const localPath = getLocalBrowserPath();
 
   // If local Chrome or Edge exists (Local PC Dev), use it
@@ -60,8 +56,6 @@ async function launchBrowser(): Promise<Browser> {
   }
 
   // Otherwise, use @sparticuz/chromium for Vercel Serverless
-  const chromiumMod = await importModule("@sparticuz/chromium");
-  const chromium = chromiumMod.default || chromiumMod;
   return puppeteer.launch({
     args: chromium.args,
     defaultViewport: { width: 1280, height: 800 },

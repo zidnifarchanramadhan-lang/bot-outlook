@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Telegram Bot to fetch Outlook/Hotmail emails and OTPs on Vercel Serverless",
   "main": "api/webhook.ts",
+  "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "tsc && node dist/dev.js",

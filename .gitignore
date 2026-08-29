@@ -4,3 +4,4 @@ dist/
 debug_step2.html
 .DS_Store
 *.log
+.vercel
