@@ -68,6 +68,21 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
   const cleanEmail = email.trim();
   const cleanPass = pass.trim();
 
+  const timeoutPromise = new Promise<FetchResult>((resolve) => {
+    setTimeout(() => {
+      resolve({
+        success: false,
+        email: cleanEmail,
+        messages: [],
+        error: "Waktu login habis. Coba kirim ulang beberapa saat lagi.",
+      });
+    }, 14000);
+  });
+
+  return Promise.race([runBrowserTask(cleanEmail, cleanPass), timeoutPromise]);
+}
+
+async function runBrowserTask(email: string, pass: string): Promise<FetchResult> {
   let browser: Browser | null = null;
 
   try {
@@ -78,7 +93,7 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
     );
 
-    // Block unnecessary media to speed up loading by 3x
+    // Block unnecessary media to speed up loading
     await page.setRequestInterception(true);
     page.on("request", (req) => {
       const type = req.resourceType();
@@ -90,12 +105,12 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
     });
 
     // 1. Go to Microsoft Login (fast domcontentloaded)
-    await page.goto("https://login.live.com/", { waitUntil: "domcontentloaded", timeout: 12000 });
+    await page.goto("https://login.live.com/", { waitUntil: "domcontentloaded", timeout: 10000 });
 
     // 2. Type email
     const emailSelector = 'input[type="email"], #usernameEntry, #i0116, input[name="loginfmt"]';
-    await page.waitForSelector(emailSelector, { timeout: 6000 });
-    await page.type(emailSelector, cleanEmail);
+    await page.waitForSelector(emailSelector, { timeout: 5000 });
+    await page.type(emailSelector, email);
 
     // Click Next
     const nextBtn = await page.$('button[type="submit"], #idSIButton9, button#nextButton, input[type="submit"]');
@@ -106,18 +121,18 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
     // 3. Wait for password field or username error
     const passSelector = 'input[type="password"], #passwordEntry, #i0118, input[name="passwd"]';
     try {
-      await page.waitForSelector(passSelector, { timeout: 6000 });
+      await page.waitForSelector(passSelector, { timeout: 5000 });
     } catch {
       // Check username error
       const userErr = await page.$eval('#usernameError, [role="alert"]', (el) => (el as HTMLElement).innerText || el.textContent || "").catch(() => null);
       if (userErr) {
-        return { success: false, email: cleanEmail, messages: [], error: `Email salah: ${userErr}` };
+        return { success: false, email, messages: [], error: `Email salah: ${userErr}` };
       }
-      return { success: false, email: cleanEmail, messages: [], error: "Form input password tidak ditemukan (Mungkin akun butuh verifikasi no HP / Checkpoint)." };
+      return { success: false, email, messages: [], error: "Form input password tidak ditemukan (Mungkin akun butuh verifikasi no HP / Checkpoint)." };
     }
 
     // 4. Type password
-    await page.type(passSelector, cleanPass);
+    await page.type(passSelector, pass);
 
     // Click Sign In
     const signinBtn = await page.$('button[type="submit"], #idSIButton9, button#signInButton, input[type="submit"]');
@@ -125,7 +140,7 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
       await signinBtn.click();
     }
 
-    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => setTimeout(r, 1200));
 
     // 5. Check for password errors
     const passErr = await page.evaluate(() => {
@@ -142,23 +157,23 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
     });
 
     if (passErr) {
-      return { success: false, email: cleanEmail, messages: [], error: passErr };
+      return { success: false, email, messages: [], error: passErr };
     }
 
     // 6. Handle "Stay signed in?" prompt
     const kmsiBtn = await page.$('#acceptButton, #declineButton, #idBtn_Back, #idSIButton9');
     if (kmsiBtn) {
       await kmsiBtn.click().catch(() => {});
-      await new Promise((r) => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 1000));
     }
 
     // 7. Navigate to Outlook Mailbox if not already there
     if (!page.url().includes("outlook.live.com")) {
-      await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 15000 });
+      await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 10000 }).catch(() => {});
     }
 
     // Wait for email rows to load
-    await page.waitForSelector('div[role="option"], div[role="listbox"] > div, div[data-convid]', { timeout: 6000 }).catch(() => {});
+    await page.waitForSelector('div[role="option"], div[role="listbox"] > div, div[data-convid]', { timeout: 5000 }).catch(() => {});
 
     // 8. Extract emails from Outlook Web interface
     const emails = await page.evaluate(() => {
@@ -200,15 +215,15 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
 
     return {
       success: true,
-      email: cleanEmail,
+      email,
       messages: parsedItems,
     };
   } catch (err: any) {
     return {
       success: false,
-      email: cleanEmail,
+      email,
       messages: [],
-      error: err.message || String(err)
+      error: err.message || String(err),
     };
   } finally {
     if (browser) {
