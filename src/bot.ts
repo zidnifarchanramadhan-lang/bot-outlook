@@ -1,9 +1,9 @@
 import { Bot, InlineKeyboard } from "grammy";
 import { config as loadDotenv } from "dotenv";
-import { fetchMailDirect } from "./direct-outlook";
-import { fetchMailWithBrowser } from "./browser-outlook";
-import { fetchRecentEmails, GraphConfig, getAccessToken } from "./graph";
-import { extractOTP } from "./otp";
+import { fetchMailDirect } from "./direct-outlook.js";
+import { fetchMailWithBrowser } from "./browser-outlook.js";
+import { fetchRecentEmails, GraphConfig, getAccessToken } from "./graph.js";
+import { extractOTP } from "./otp.js";
 
 loadDotenv();
 

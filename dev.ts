@@ -1,4 +1,4 @@
-import { bot } from "./src/bot";
+import { bot } from "./src/bot.js";
 
 console.log("🚀 Menjalankan bot Telegram dalam mode Long Polling (Local Dev)...");
 console.log("Tekan Ctrl+C untuk menghentikan.\n");

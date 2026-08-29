@@ -3,7 +3,7 @@
  * Automatically handles Microsoft authentication and pulls recent emails & OTPs.
  */
 
-import { extractOTP, OTPExtractionResult } from "./otp";
+import { extractOTP, OTPExtractionResult } from "./otp.js";
 
 export interface DirectEmailItem {
   id: string;

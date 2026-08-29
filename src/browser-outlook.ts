@@ -1,7 +1,7 @@
 import puppeteer, { Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import fs from "fs";
-import { extractOTP, OTPExtractionResult } from "./otp";
+import { extractOTP, OTPExtractionResult } from "./otp.js";
 
 export interface DirectEmailItem {
   id: string;
