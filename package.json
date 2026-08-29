@@ -1,0 +1,32 @@
+{
+  "name": "outlook-telegram-bot-vercel",
+  "version": "1.0.0",
+  "description": "Telegram Bot to fetch Outlook/Hotmail emails and OTPs on Vercel Serverless",
+  "main": "api/webhook.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && node dist/dev.js",
+    "login": "node scripts/login.mjs",
+    "test-otp": "node scripts/test-otp.mjs"
+  },
+  "keywords": [
+    "telegram-bot",
+    "outlook",
+    "hotmail",
+    "otp",
+    "microsoft-graph",
+    "vercel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@sparticuz/chromium": "^149.0.0",
+    "dotenv": "^16.4.7",
+    "grammy": "^1.35.0",
+    "puppeteer-core": "^25.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "typescript": "^5.7.3"
+  }
+}

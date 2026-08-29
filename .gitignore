@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env
+debug_step2.html
+.DS_Store
+*.log
