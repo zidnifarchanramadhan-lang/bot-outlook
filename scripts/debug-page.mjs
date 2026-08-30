@@ -78,16 +78,37 @@ async function debugFlow(email, password) {
 
   // Go to Outlook
   console.log("8. Navigating to Outlook Mail...");
-  await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 20000 });
-  await page.waitForSelector('div[data-convid], div[role="option"]', { timeout: 10000 }).catch(() => {});
+  await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 25000 });
+  await page.waitForSelector('div[data-convid], div[role="option"], [aria-label*="unread"], [aria-label*="read"]', { timeout: 16000 }).catch(() => {});
   await new Promise(r => setTimeout(r, 4000));
 
   console.log("9. Outlook URL:", page.url());
-  const rows = await page.$$eval('div[data-convid], div[role="option"]', els => els.map(e => e.innerText));
-  console.log("10. Found rows count:", rows.length);
-  for (let i = 0; i < Math.min(rows.length, 5); i++) {
-    console.log(`--- Email ${i + 1} ---`);
-    console.log(rows[i]);
+  const extracted = await page.evaluate(() => {
+    const items = [];
+    const rows = document.querySelectorAll('div[data-convid], div[role="option"]');
+    
+    // Check if rows found
+    if (rows && rows.length > 0) {
+      for (const row of Array.from(rows).slice(0, 10)) {
+        const text = (row.innerText || "").trim();
+        if (text.length > 10) {
+          items.push(text);
+        }
+      }
+    }
+    
+    // Fallback: parse from body text if rows selector returned nothing
+    if (items.length === 0) {
+      const fullText = document.body ? document.body.innerText || "" : "";
+      items.push("FALLBACK_BODY: " + fullText.substring(0, 500));
+    }
+    
+    return items;
+  });
+
+  console.log("Extracted items count:", extracted.length);
+  for (let i = 0; i < extracted.length; i++) {
+    console.log(`[Item ${i + 1}]`, extracted[i].substring(0, 100));
   }
 
   await browser.close();

@@ -245,43 +245,76 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
     }
 
     // 7. Navigate directly to Outlook Mailbox
-    await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+    await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
 
     // Wait for email list to render
-    await page.waitForSelector('div[data-convid], div[role="option"]', { timeout: 8000 }).catch(() => {});
-    await new Promise((r) => setTimeout(r, 3000));
+    await page.waitForSelector('div[data-convid], div[role="option"], [aria-label*="unread"], [aria-label*="read"]', { timeout: 14000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 3500));
 
     // 8. Extract emails from Outlook Web interface
     const emails = await safeEvaluate(page, () => {
       const items: Array<{ subject: string; from: string; preview: string; dateStr: string }> = [];
       const rows = document.querySelectorAll('div[data-convid], div[role="option"]');
 
-      for (const row of Array.from(rows).slice(0, 10)) {
-        const text = (row as HTMLElement).innerText || "";
-        const lines = text
-          .split("\n")
-          .map((l) => l.trim())
-          .filter((l) => l.length > 0);
+      if (rows && rows.length > 0) {
+        for (const row of Array.from(rows).slice(0, 10)) {
+          const text = (row as HTMLElement).innerText || "";
+          const lines = text
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l.length > 0);
 
-        if (lines.length >= 2) {
-          // If first line is a single character (avatar initial letter like "C"), skip it
-          let startIdx = 0;
-          if (lines[0].length === 1 && lines.length >= 3) {
-            startIdx = 1;
+          if (lines.length >= 2) {
+            // If first line is a single character (avatar initial letter like "C"), skip it
+            let startIdx = 0;
+            if (lines[0].length === 1 && lines.length >= 3) {
+              startIdx = 1;
+            }
+
+            const from = lines[startIdx] || "";
+            const subject = lines[startIdx + 1] || "";
+            const preview = lines.slice(startIdx + 2).join(" ");
+
+            items.push({
+              from,
+              subject,
+              preview,
+              dateStr: new Date().toISOString(),
+            });
           }
-
-          const from = lines[startIdx] || "";
-          const subject = lines[startIdx + 1] || "";
-          const preview = lines.slice(startIdx + 2).join(" ");
-
-          items.push({
-            from,
-            subject,
-            preview,
-            dateStr: new Date().toISOString(),
-          });
         }
       }
+
+      // Resilient fallback: If DOM rows was empty, scan document body text for email/OTP blocks
+      if (items.length === 0) {
+        const body = document.body ? document.body.innerText || "" : "";
+        const lines = body.split("\n").map((l) => l.trim()).filter((l) => l.length > 0);
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          if (
+            line.toLowerCase().includes("kode") ||
+            line.toLowerCase().includes("code") ||
+            line.toLowerCase().includes("verifikasi") ||
+            line.toLowerCase().includes("verification") ||
+            line.toLowerCase().includes("chatgpt") ||
+            line.toLowerCase().includes("canva") ||
+            line.toLowerCase().includes("tiktok") ||
+            line.toLowerCase().includes("google") ||
+            line.toLowerCase().includes("discord") ||
+            line.toLowerCase().includes("password") ||
+            line.toLowerCase().includes("sandi")
+          ) {
+            items.push({
+              from: lines[Math.max(0, i - 1)] || "Outlook Mail",
+              subject: line,
+              preview: lines.slice(i, i + 3).join(" "),
+              dateStr: new Date().toISOString(),
+            });
+            i += 2; // skip next couple lines to prevent duplicate chunks
+          }
+        }
+      }
+
       return items;
     });
 
