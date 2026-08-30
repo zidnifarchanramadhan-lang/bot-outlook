@@ -77,9 +77,9 @@ export async function fetchMailWithBrowser(email: string, pass: string): Promise
         success: false,
         email: cleanEmail,
         messages: [],
-        error: "Waktu login habis (Timeout). Coba kirim ulang beberapa saat lagi.",
+        error: "Waktu login habis (Timeout). Server sedang lambat, coba ulangi beberapa saat lagi.",
       });
-    }, 28000);
+    }, 50000);
   });
 
   return Promise.race([runBrowserTask(cleanEmail, cleanPass), timeoutPromise]);
