@@ -17,6 +17,7 @@ console.log("Tekan Ctrl+C untuk menghentikan.\n");
 
 bot
   .start({
+    drop_pending_updates: true,
     onStart(botInfo) {
       console.log(`✅ Bot berhasil berjalan sebagai @${botInfo.username}`);
     },
