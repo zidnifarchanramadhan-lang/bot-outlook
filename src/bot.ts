@@ -76,11 +76,13 @@ async function handleDirectMailCheck(ctx: any, email: string, pass: string) {
 
   try {
     let result = await fetchMailWithBrowser(email, pass);
-    if (!result.success && !result.error?.includes("Password") && !result.error?.includes("salah")) {
+    if (!result.success && !result.error?.includes("Password") && !result.error?.includes("salah") && !result.error?.includes("terkunci")) {
       // Fallback to direct HTTP fetcher
       const fallbackResult = await fetchMailDirect(email, pass);
       if (fallbackResult.success) {
         result = fallbackResult;
+      } else if (fallbackResult.error && !fallbackResult.error.includes("PPFT") && !fallbackResult.error.includes("menginisialisasi")) {
+        result.error = fallbackResult.error;
       }
     }
 
@@ -88,8 +90,8 @@ async function handleDirectMailCheck(ctx: any, email: string, pass: string) {
       await ctx.api.editMessageText(
         ctx.chat.id,
         waitMsg.message_id,
-        `❌ <b>Gagal membaca email:</b>\n<code>${escapeHTML(result.error || "Gagal login")}</code>\n\n` +
-          `<i>Pastikan email dan password benar, dan akun tidak sedang terkunci.</i>`,
+        `❌ <b>Gagal membaca email / Akun bermasalah:</b>\n\n📌 <b>Status:</b> <code>${escapeHTML(result.error || "Gagal login")}</code>\n\n` +
+          `<i>Pastikan email & password benar, atau coba login manual di browser untuk memastikan akun tidak terkunci/butuh verifikasi.</i>`,
         { parse_mode: "HTML" }
       );
       return;

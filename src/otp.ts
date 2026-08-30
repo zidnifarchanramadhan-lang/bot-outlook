@@ -30,8 +30,8 @@ export function extractOTP(subject: string = "", bodyPreview: string = ""): OTPE
   }
 
   // 3. High confidence contextual regex with keyword prefixes
-  // e.g. "verification code is 849201", "OTP: 123456", "Kode OTP Anda adalah 918234"
-  const contextualRegex = /(?:code|otp|kode|pin|passcode|verification|verifikasi|security code|login code|confirmation code|access code)[\s\w]*?(?:is|adalah|:|—|-|=|\s)\s*#?\s*([A-Za-z0-9]{4,8})\b/i;
+  // e.g. "verification code is 849201", "OTP: 123456", "Kode OTP Anda adalah 918234", "Masukkan 465515"
+  const contextualRegex = /(?:code|otp|kode|pin|passcode|verification|verifikasi|security code|login code|confirmation code|access code|masukkan|enter|gunakan|use)[\s\w]*?(?:is|adalah|:|—|-|=|\s)\s*#?\s*([A-Za-z0-9]{4,8})\b/i;
 
   const subCtx = cleanSubject.match(contextualRegex);
   if (subCtx && subCtx[1] && isValidOTPToken(subCtx[1])) {
@@ -78,12 +78,9 @@ export function extractOTP(subject: string = "", bodyPreview: string = ""): OTPE
 
 function isValidOTPToken(token: string): boolean {
   if (!token) return false;
-  // If token is all letters (dictionary word), it's probably not an OTP unless it's very short and mixed
+  // If token is purely alphabet letters (e.g. Canva, Google, Masuk), reject it
   if (/^[a-zA-Z]+$/.test(token)) {
-    const commonWords = new Set(["code", "kode", "akun", "your", "anda", "kami", "akses", "login", "user", "pass", "into", "dari"]);
-    if (commonWords.has(token.toLowerCase())) {
-      return false;
-    }
+    return false;
   }
   // Check if year
   if (IGNORED_NUMBERS.has(token)) {

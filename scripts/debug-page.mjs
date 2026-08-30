@@ -67,4 +67,4 @@ async function debugFlow(email, password) {
   await browser.close();
 }
 
-debugFlow("b1ze7f9svkpgz6p@hotmail.com", "D066u5d*5w");
+debugFlow("ncvdrwhxt3z@hotmail.com", "masuk12345");
