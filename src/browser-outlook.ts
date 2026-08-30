@@ -264,7 +264,7 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
       const items: Array<{ subject: string; from: string; preview: string; dateStr: string }> = [];
       const rows = document.querySelectorAll('div[role="option"], div[role="listbox"] > div, div[data-convid]');
 
-      for (const row of Array.from(rows).slice(0, 5)) {
+      for (const row of Array.from(rows).slice(0, 10)) {
         const text = (row as HTMLElement).innerText || "";
         const lines = text
           .split("\n")

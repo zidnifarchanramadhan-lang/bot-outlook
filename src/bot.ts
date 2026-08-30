@@ -75,16 +75,19 @@ bot.command(["start", "help"], async (ctx) => {
     `👉 <code>contoh@outlook.com|passwordmu</code>\n\n` +
     `Atau gunakan perintah:\n` +
     `• <code>/otp email@hotmail.com passwordmu</code>\n` +
-    `• <code>/mail email@hotmail.com passwordmu</code> (lihat daftar email lengkap)\n\n` +
+    `• <code>/mail email@hotmail.com passwordmu</code> (lihat daftar email lengkap)\n` +
+    `• <code>/history email@hotmail.com passwordmu</code> (lihat semua history OTP)\n\n` +
     `<i>Bot akan langsung login otomatis dan mengirimkan kode OTP terbaru Anda!</i>`;
 
   await ctx.reply(welcomeText, { parse_mode: "HTML" });
 });
 
 // Direct Handler: When user sends email:pass or /otp email pass
-async function handleDirectMailCheck(ctx: any, email: string, pass: string) {
+async function handleDirectMailCheck(ctx: any, email: string, pass: string, historyMode: boolean = false) {
   const waitMsg = await ctx.reply(
-    `⏳ <i>Sedang membuka browser & login ke <b>${escapeHTML(email)}</b>...</i>`,
+    historyMode
+      ? `⏳ <i>Sedang mengambil history OTP dari <b>${escapeHTML(email)}</b>...</i>`
+      : `⏳ <i>Sedang membuka browser & login ke <b>${escapeHTML(email)}</b>...</i>`,
     { parse_mode: "HTML" }
   );
 
@@ -121,21 +124,28 @@ async function handleDirectMailCheck(ctx: any, email: string, pass: string) {
       return;
     }
 
+    // Determine how many emails to show
+    const maxEmails = historyMode ? 10 : 3;
+    const messagesToShow = result.messages.slice(0, maxEmails);
+
     // Format results
     const cards: string[] = [];
     let otpCount = 0;
+    const otpSummary: string[] = [];
 
-    for (const msg of result.messages.slice(0, 3)) {
+    for (let i = 0; i < messagesToShow.length; i++) {
+      const msg = messagesToShow[i];
       const timeStr = msg.date.toLocaleString("id-ID", { timeZone: "Asia/Jakarta" });
       const sender = msg.fromName ? `${msg.fromName} (${msg.fromAddress})` : msg.fromAddress;
 
-      let card = `👤 <b>Dari:</b> ${escapeHTML(sender)}\n`;
+      let card = `<b>${i + 1}.</b> 👤 <b>Dari:</b> ${escapeHTML(sender)}\n`;
       card += `🕒 <code>${timeStr} WIB</code>\n`;
       card += `📋 <b>Subjek:</b> ${escapeHTML(msg.subject)}\n`;
 
       if (msg.otpResult) {
         otpCount++;
         card += `\n🔑 <b>KODE OTP:</b> <code>${msg.otpResult.code}</code> <i>(klik untuk salin)</i>\n`;
+        otpSummary.push(`🔑 <code>${msg.otpResult.code}</code> — ${escapeHTML(msg.fromName || msg.fromAddress)} (<code>${timeStr}</code>)`);
       }
 
       if (msg.bodyPreview) {
@@ -149,12 +159,32 @@ async function handleDirectMailCheck(ctx: any, email: string, pass: string) {
       cards.push(card);
     }
 
-    const header =
-      otpCount > 0
-        ? `✅ <b>KODE OTP DITEMUKAN!</b>\n📬 Akun: <code>${escapeHTML(email)}</code>\n\n`
-        : `📬 <b>Email Terbaru:</b> (Akun: <code>${escapeHTML(email)}</code>)\n\n`;
+    // Build response
+    let header: string;
+    if (historyMode) {
+      header = `📜 <b>HISTORY EMAIL & OTP</b>\n📬 Akun: <code>${escapeHTML(email)}</code>\n📊 Total: ${messagesToShow.length} email ditemukan\n`;
 
-    const finalResponse = header + cards.join("\n━━━━━━━━━━━━━━━━━━━━\n\n");
+      if (otpSummary.length > 0) {
+        header += `\n━━ 📋 <b>RINGKASAN OTP (${otpCount})</b> ━━\n`;
+        header += otpSummary.join("\n") + "\n";
+        header += `━━━━━━━━━━━━━━━━━━━━\n`;
+      } else {
+        header += `\n<i>Tidak ada kode OTP ditemukan di email.</i>\n`;
+      }
+      header += `\n━━ 📨 <b>DETAIL EMAIL</b> ━━\n\n`;
+    } else {
+      header =
+        otpCount > 0
+          ? `✅ <b>KODE OTP DITEMUKAN!</b>\n📬 Akun: <code>${escapeHTML(email)}</code>\n\n`
+          : `📬 <b>Email Terbaru:</b> (Akun: <code>${escapeHTML(email)}</code>)\n\n`;
+    }
+
+    let finalResponse = header + cards.join("\n━━━━━━━━━━━━━━━━━━━━\n\n");
+
+    // Telegram message limit is 4096 chars
+    if (finalResponse.length > 4000) {
+      finalResponse = finalResponse.substring(0, 3950) + "\n\n<i>... (pesan dipotong karena terlalu panjang)</i>";
+    }
 
     await ctx.api.editMessageText(ctx.chat.id, waitMsg.message_id, finalResponse, {
       parse_mode: "HTML",
@@ -211,6 +241,25 @@ bot.command("mail", async (ctx) => {
   await ctx.reply(
     `ℹ️ <b>Format Perintah /mail:</b>\n\n` +
       `<code>/mail email@hotmail.com passwordmu</code>`,
+    { parse_mode: "HTML" }
+  );
+});
+
+// Command: /history - Show all OTP history
+bot.command("history", async (ctx) => {
+  const text = ctx.message?.text || "";
+  const rawParams = text.replace(/^\/history\s*/i, "").trim();
+
+  const creds = parseCredentials(rawParams);
+  if (creds) {
+    await handleDirectMailCheck(ctx, creds.email, creds.pass, true);
+    return;
+  }
+
+  await ctx.reply(
+    `ℹ️ <b>Format Perintah /history:</b>\n\n` +
+      `<code>/history email@hotmail.com passwordmu</code>\n\n` +
+      `<i>Menampilkan hingga 10 email terbaru beserta ringkasan semua kode OTP yang ditemukan.</i>`,
     { parse_mode: "HTML" }
   );
 });
