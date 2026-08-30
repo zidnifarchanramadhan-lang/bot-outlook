@@ -94,12 +94,24 @@ async function handleDirectMailCheck(ctx: any, email: string, pass: string, hist
   try {
     let result = await fetchMailWithBrowser(email, pass);
     if (!result.success && !result.error?.includes("Password") && !result.error?.includes("salah") && !result.error?.includes("terkunci")) {
-      // Fallback to direct HTTP fetcher
+      // Fallback to direct HTTP fetcher when browser login fails
       const fallbackResult = await fetchMailDirect(email, pass);
       if (fallbackResult.success) {
         result = fallbackResult;
       } else if (fallbackResult.error && !fallbackResult.error.includes("PPFT") && !fallbackResult.error.includes("menginisialisasi")) {
         result.error = fallbackResult.error;
+      }
+    }
+
+    // If browser succeeded but found 0 messages, try direct HTTP method too
+    if (result.success && result.messages.length === 0) {
+      try {
+        const directResult = await fetchMailDirect(email, pass);
+        if (directResult.success && directResult.messages.length > 0) {
+          result = directResult;
+        }
+      } catch {
+        // ignore fallback errors
       }
     }
 
