@@ -117,18 +117,35 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
     // 2. Type email
     const emailSelector = 'input[type="email"], #usernameEntry, #i0116, input[name="loginfmt"]';
     await page.waitForSelector(emailSelector, { timeout: 8000 });
-    await page.type(emailSelector, email, { delay: 20 });
+    await page.type(emailSelector, email, { delay: 25 });
 
-    // Click Next
+    // Click Next or press Enter
+    await page.keyboard.press("Enter");
     const nextBtn = await page.$('button[type="submit"], #idSIButton9, button#nextButton, input[type="submit"]');
     if (nextBtn) {
-      await nextBtn.click();
+      await nextBtn.click().catch(() => {});
+    }
+
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // If "issue looking up your account" appears, retry clicking Next
+    const hasLookupIssue = await safeEvaluate(page, () => {
+      const body = document.body ? document.body.innerText || "" : "";
+      return body.includes("issue looking up your account") || body.includes("masalah saat mencari akun");
+    });
+    if (hasLookupIssue) {
+      const retryBtn = await page.$('button[type="submit"], #idSIButton9, button#nextButton, input[type="submit"]');
+      if (retryBtn) {
+        await retryBtn.click().catch(() => {});
+      }
+      await page.keyboard.press("Enter").catch(() => {});
+      await new Promise((r) => setTimeout(r, 2000));
     }
 
     // 3. Wait for password field or username error
     const passSelector = 'input[type="password"], #passwordEntry, #i0118, input[name="passwd"]';
     try {
-      await page.waitForSelector(passSelector, { timeout: 6000 });
+      await page.waitForSelector(passSelector, { timeout: 7000 });
     } catch {
       // Check username error - element-based
       const userErr = await safeEvaluate(page, () => {
@@ -137,11 +154,7 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
           const txt = (el as HTMLElement).innerText || el.textContent || "";
           if (txt.trim().length > 0) return txt.trim();
         }
-        // Also check body text for common errors
         const body = document.body ? document.body.innerText || "" : "";
-        if (body.includes("issue looking up your account") || body.includes("masalah saat mencari akun")) {
-          return "Microsoft gagal memproses akun ini (issue looking up). Coba lagi beberapa menit kemudian.";
-        }
         if (body.includes("doesn't exist") || body.includes("tidak ada") || body.includes("That Microsoft account doesn")) {
           return "Akun Microsoft tidak ditemukan.";
         }
@@ -157,16 +170,18 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
     }
 
     // 4. Type password
-    await page.type(passSelector, pass, { delay: 20 });
+    await page.type(passSelector, pass, { delay: 25 });
 
     // Click Sign In
     const signinBtn = await page.$('button[type="submit"], #idSIButton9, button#signInButton, input[type="submit"]');
     if (signinBtn) {
       await signinBtn.click();
+    } else {
+      await page.keyboard.press("Enter");
     }
 
     // Wait for navigation or error to appear
-    await new Promise((r) => setTimeout(r, 2500));
+    await new Promise((r) => setTimeout(r, 3000));
 
     // 5. Check for password / checkpoint errors
     const passErr = await safeEvaluate(page, () => {
@@ -232,52 +247,28 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
       return { success: false, email, messages: [], error: passErr };
     }
 
-    // 6. Handle "Stay signed in?" prompt (KMSI)
+    // 6. Handle "Stay signed in?" prompt (KMSI) or Privacy Notice
     try {
-      const kmsiBtn = await page.$('#acceptButton, #declineButton, #idBtn_Back, #idSIButton9');
-      if (kmsiBtn) {
-        await kmsiBtn.click().catch(() => {});
-        await new Promise((r) => setTimeout(r, 2000));
+      const promptBtn = await page.$('button.ms-Button--primary, #acceptButton, #declineButton, #idBtn_Back, #idSIButton9');
+      if (promptBtn) {
+        await promptBtn.click().catch(() => {});
+        await new Promise((r) => setTimeout(r, 1500));
       }
     } catch {
       // ignore
     }
 
-    // Check again if redirected to security proofs / recovery email page after KMSI
-    const postKmsiErr = await safeEvaluate(page, () => {
-      const url = window.location.href;
-      const body = document.body ? document.body.innerText || "" : "";
-      if (
-        url.includes("/proofs/") ||
-        url.includes("proofs/Add") ||
-        url.includes("account.live.com/proofs") ||
-        body.includes("Mari lindungi akun Anda") ||
-        body.includes("email pribadi agar Anda dapat kembali") ||
-        body.includes("alamat email alternatif") ||
-        body.includes("seseorang@example.com")
-      ) {
-        return "Akun disuruh memasukkan email pemulihan (Buka browser untuk menambahkan email pemulihan).";
-      }
-      return null;
-    });
+    // 7. Navigate directly to Outlook Mailbox
+    await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
 
-    if (postKmsiErr) {
-      return { success: false, email, messages: [], error: postKmsiErr };
-    }
-
-    // 7. Navigate to Outlook Mailbox if not already there
-    const currentUrl = page.url();
-    if (!currentUrl.includes("outlook.live.com")) {
-      await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 12000 }).catch(() => {});
-    }
-
-    // Wait for email rows to load
-    await page.waitForSelector('div[role="option"], div[role="listbox"] > div, div[data-convid]', { timeout: 6000 }).catch(() => {});
+    // Wait for email list to render
+    await page.waitForSelector('div[data-convid], div[role="option"]', { timeout: 8000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 3000));
 
     // 8. Extract emails from Outlook Web interface
     const emails = await safeEvaluate(page, () => {
       const items: Array<{ subject: string; from: string; preview: string; dateStr: string }> = [];
-      const rows = document.querySelectorAll('div[role="option"], div[role="listbox"] > div, div[data-convid]');
+      const rows = document.querySelectorAll('div[data-convid], div[role="option"]');
 
       for (const row of Array.from(rows).slice(0, 10)) {
         const text = (row as HTMLElement).innerText || "";
@@ -285,11 +276,22 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
           .split("\n")
           .map((l) => l.trim())
           .filter((l) => l.length > 0);
+
         if (lines.length >= 2) {
+          // If first line is a single character (avatar initial letter like "C"), skip it
+          let startIdx = 0;
+          if (lines[0].length === 1 && lines.length >= 3) {
+            startIdx = 1;
+          }
+
+          const from = lines[startIdx] || "";
+          const subject = lines[startIdx + 1] || "";
+          const preview = lines.slice(startIdx + 2).join(" ");
+
           items.push({
-            from: lines[0] || "",
-            subject: lines[1] || "",
-            preview: lines.slice(2).join(" "),
+            from,
+            subject,
+            preview,
             dateStr: new Date().toISOString(),
           });
         }
