@@ -79,6 +79,25 @@ async function debugFlow(email, password) {
   // Go to Outlook
   console.log("8. Navigating to Outlook Mail...");
   await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 25000 });
+  await new Promise(r => setTimeout(r, 2000));
+
+  // Check if Outlook crashed with "Something went wrong / Refresh application"
+  const needsRefresh = await page.evaluate(() => {
+    const body = document.body ? document.body.innerText || "" : "";
+    return body.includes("Something went wrong") || body.includes("Refresh the application") || body.includes("BootResult: fail");
+  });
+
+  if (needsRefresh) {
+    console.log("Found 'Something went wrong' on Outlook! Clicking Refresh or reloading...");
+    const refreshBtn = await page.$('button#refreshButton, a[role="button"], a.ms-Link');
+    if (refreshBtn) {
+      await refreshBtn.click().catch(() => {});
+    } else {
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+    }
+    await new Promise(r => setTimeout(r, 4000));
+  }
+
   await page.waitForSelector('div[data-convid], div[role="option"], [aria-label*="unread"], [aria-label*="read"]', { timeout: 16000 }).catch(() => {});
   await new Promise(r => setTimeout(r, 4000));
 

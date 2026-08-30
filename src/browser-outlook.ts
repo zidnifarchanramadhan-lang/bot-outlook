@@ -264,6 +264,24 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
         await new Promise((r) => setTimeout(r, 2000));
       }
       await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+
+    // Check if Outlook crashed with "Something went wrong / Refresh application / BootResult: fail"
+    const needsRefresh = await safeEvaluate(page, () => {
+      const body = document.body ? document.body.innerText || "" : "";
+      return body.includes("Something went wrong") || body.includes("Refresh the application") || body.includes("BootResult: fail");
+    });
+
+    if (needsRefresh) {
+      console.log("[Browser] Found 'Something went wrong' on Outlook! Clicking Refresh or reloading...");
+      const refreshBtn = await page.$('button#refreshButton, a[role="button"], a.ms-Link');
+      if (refreshBtn) {
+        await refreshBtn.click().catch(() => {});
+      } else {
+        await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      }
+      await new Promise((r) => setTimeout(r, 4000));
     }
 
     // Wait for email list to render
