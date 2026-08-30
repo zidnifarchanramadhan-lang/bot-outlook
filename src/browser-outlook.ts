@@ -60,10 +60,18 @@ async function launchBrowser(): Promise<Browser> {
 
   // Otherwise, use @sparticuz/chromium for Vercel Serverless
   return puppeteer.launch({
-    args: chromium.args,
+    args: [
+      ...chromium.args,
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-gpu",
+      "--single-process",
+      "--no-zygote",
+    ],
     defaultViewport: { width: 1280, height: 800 },
     executablePath: await chromium.executablePath(),
-    headless: true,
+    headless: chromium.headless,
   });
 }
 
@@ -246,10 +254,21 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
 
     // 7. Navigate directly to Outlook Mailbox
     await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 2000));
+
+    // If redirected back to login or interrupt, click any lingering prompt button
+    if (page.url().includes("login.live.com") || page.url().includes("account.live.com") || page.url().includes("privacynotice")) {
+      const lingeringBtn = await page.$('button.ms-Button--primary, #acceptButton, #declineButton, #idSIButton9, #iCancel, a#iCancel, button[type="submit"]');
+      if (lingeringBtn) {
+        await lingeringBtn.click().catch(() => {});
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      await page.goto("https://outlook.live.com/mail/0/", { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
+    }
 
     // Wait for email list to render
-    await page.waitForSelector('div[data-convid], div[role="option"], [aria-label*="unread"], [aria-label*="read"]', { timeout: 14000 }).catch(() => {});
-    await new Promise((r) => setTimeout(r, 3500));
+    await page.waitForSelector('div[data-convid], div[role="option"], [aria-label*="unread"], [aria-label*="read"]', { timeout: 15000 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 4000));
 
     // 8. Extract emails from Outlook Web interface
     const emails = await safeEvaluate(page, () => {
