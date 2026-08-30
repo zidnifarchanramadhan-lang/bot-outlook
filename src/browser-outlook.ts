@@ -130,13 +130,28 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
     try {
       await page.waitForSelector(passSelector, { timeout: 6000 });
     } catch {
-      // Check username error
+      // Check username error - element-based
       const userErr = await safeEvaluate(page, () => {
         const el = document.querySelector('#usernameError, [role="alert"]');
-        return el ? (el as HTMLElement).innerText || el.textContent : null;
+        if (el) {
+          const txt = (el as HTMLElement).innerText || el.textContent || "";
+          if (txt.trim().length > 0) return txt.trim();
+        }
+        // Also check body text for common errors
+        const body = document.body ? document.body.innerText || "" : "";
+        if (body.includes("issue looking up your account") || body.includes("masalah saat mencari akun")) {
+          return "Microsoft gagal memproses akun ini (issue looking up). Coba lagi beberapa menit kemudian.";
+        }
+        if (body.includes("doesn't exist") || body.includes("tidak ada") || body.includes("That Microsoft account doesn")) {
+          return "Akun Microsoft tidak ditemukan.";
+        }
+        if (body.includes("sign in too many") || body.includes("terlalu banyak")) {
+          return "Terlalu banyak percobaan login. Akun dibatasi sementara oleh Microsoft.";
+        }
+        return null;
       });
       if (userErr && userErr.trim().length > 0) {
-        return { success: false, email, messages: [], error: `Email salah: ${userErr.trim()}` };
+        return { success: false, email, messages: [], error: userErr.trim() };
       }
       return { success: false, email, messages: [], error: "Form input password tidak ditemukan (Mungkin akun butuh verifikasi no HP / Checkpoint)." };
     }
