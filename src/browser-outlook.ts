@@ -112,40 +112,20 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
     );
 
     // 1. Go to Microsoft Login
-    await page.goto("https://login.live.com/login.srf", { waitUntil: "domcontentloaded", timeout: 15000 });
+    await page.goto("https://login.live.com/", { waitUntil: "domcontentloaded", timeout: 15000 });
 
     // 2. Type email
     const emailSelector = 'input[type="email"], #usernameEntry, #i0116, input[name="loginfmt"]';
-    await page.waitForSelector(emailSelector, { timeout: 8000 });
+    await page.waitForSelector(emailSelector, { timeout: 10000 });
     await page.type(emailSelector, email, { delay: 25 });
 
-    // Click Next or press Enter
+    // Press Enter to submit email
     await page.keyboard.press("Enter");
-    const nextBtn = await page.$('button[type="submit"], #idSIButton9, button#nextButton, input[type="submit"]');
-    if (nextBtn) {
-      await nextBtn.click().catch(() => {});
-    }
-
-    await new Promise((r) => setTimeout(r, 2000));
-
-    // If "issue looking up your account" appears, retry clicking Next
-    const hasLookupIssue = await safeEvaluate(page, () => {
-      const body = document.body ? document.body.innerText || "" : "";
-      return body.includes("issue looking up your account") || body.includes("masalah saat mencari akun");
-    });
-    if (hasLookupIssue) {
-      const retryBtn = await page.$('button[type="submit"], #idSIButton9, button#nextButton, input[type="submit"]');
-      if (retryBtn) {
-        await retryBtn.click().catch(() => {});
-      }
-      await page.keyboard.press("Enter").catch(() => {});
-      await new Promise((r) => setTimeout(r, 2000));
-    }
 
     // 3. Wait for password field or username error
     const passSelector = 'input[type="password"], #passwordEntry, #i0118, input[name="passwd"]';
     try {
-      await page.waitForSelector(passSelector, { timeout: 7000 });
+      await page.waitForSelector(passSelector, { timeout: 9000 });
     } catch {
       // Check username error - element-based
       const userErr = await safeEvaluate(page, () => {
@@ -172,16 +152,16 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
     // 4. Type password
     await page.type(passSelector, pass, { delay: 25 });
 
-    // Click Sign In
+    // Click Sign In or press Enter
     const signinBtn = await page.$('button[type="submit"], #idSIButton9, button#signInButton, input[type="submit"]');
     if (signinBtn) {
-      await signinBtn.click();
+      await signinBtn.click().catch(() => {});
     } else {
       await page.keyboard.press("Enter");
     }
 
-    // Wait for navigation or error to appear
-    await new Promise((r) => setTimeout(r, 3000));
+    // Wait for navigation or interrupt/error to appear
+    await new Promise((r) => setTimeout(r, 4000));
 
     // 5. Check for password / checkpoint errors
     const passErr = await safeEvaluate(page, () => {
@@ -247,12 +227,18 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
       return { success: false, email, messages: [], error: passErr };
     }
 
-    // 6. Handle "Stay signed in?" prompt (KMSI) or Privacy Notice
+    // 6. Handle Interrupts (Passkey / KMSI / Privacy Notice / Security Prompts)
     try {
-      const promptBtn = await page.$('button.ms-Button--primary, #acceptButton, #declineButton, #idBtn_Back, #idSIButton9');
+      const skipBtn = await page.$('#iCancel, #iSelectProofAction, a#iCancel, button#iCancel, input#iCancel, button#declineButton, a[href*="cancel"]');
+      if (skipBtn) {
+        await skipBtn.click().catch(() => {});
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      const promptBtn = await page.$('button.ms-Button--primary, #acceptButton, #declineButton, #idSIButton9, button[type="submit"]');
       if (promptBtn) {
         await promptBtn.click().catch(() => {});
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 2000));
       }
     } catch {
       // ignore
