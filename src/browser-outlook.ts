@@ -71,7 +71,7 @@ async function launchBrowser(): Promise<Browser> {
     ],
     defaultViewport: { width: 1280, height: 800 },
     executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
+    headless: true,
   });
 }
 
