@@ -337,6 +337,11 @@ async function runBrowserTask(email: string, pass: string): Promise<FetchResult>
       return items;
     });
 
+    console.log("[Browser] Current URL before extract:", page.url());
+    const bodySample = await safeEvaluate(page, () => (document.body ? document.body.innerText.substring(0, 300) : "no-body"));
+    console.log("[Browser] Body sample:", bodySample);
+    console.log("[Browser] Extracted emails count:", emails ? emails.length : 0);
+
     const parsedItems: DirectEmailItem[] = (emails || []).map((item) => {
       const otp = extractOTP(item.subject, item.preview);
       return {
