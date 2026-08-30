@@ -14,7 +14,21 @@ if (!token) {
 
 export const bot = new Bot(token);
 
-// Middleware: Check allowed Telegram User IDs
+// Middleware 1: Prevent Duplicate Messages (Telegram Retry Deduplication)
+const processedMessages = new Set<string>();
+bot.use(async (ctx, next) => {
+  if (ctx.message?.message_id && ctx.chat?.id) {
+    const msgKey = `${ctx.chat.id}:${ctx.message.message_id}`;
+    if (processedMessages.has(msgKey)) {
+      return; // Ignore duplicate delivery
+    }
+    processedMessages.add(msgKey);
+    setTimeout(() => processedMessages.delete(msgKey), 180000); // 3 minutes TTL
+  }
+  await next();
+});
+
+// Middleware 2: Check allowed Telegram User IDs
 bot.use(async (ctx, next) => {
   const allowedIdsStr = process.env.ALLOWED_USER_IDS;
   if (allowedIdsStr && ctx.from) {
